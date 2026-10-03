@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Caixa do mês</title>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#f4f6f5;--card:#fff;--ink:#14231f;--mut:#5d6b66;--line:#dfe5e2;--pos:#0f6b5c;--neg:#b3261e;--lt:#cfe3dd;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1715;--card:#18231f;--ink:#e8f0ed;--mut:#9bb0a9;--line:#2a3a35;--pos:#4fc3a8;--neg:#ff8a80;--lt:#25413a}}
+:root[data-theme="dark"]{--bg:#0f1715;--card:#18231f;--ink:#e8f0ed;--mut:#9bb0a9;--line:#2a3a35;--pos:#4fc3a8;--neg:#ff8a80;--lt:#25413a}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 Figtree,system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:480px;margin:0 auto;padding:20px 16px 48px}
+h2{font-size:18px;margin:32px 0 10px;font-weight:800}
+.mut{color:var(--mut);font-size:14px}
+.hero .big{font-size:46px;font-weight:800;letter-spacing:-1px;line-height:1.1}
+.pos{color:var(--pos)}.neg{color:var(--neg)}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:16px 0 8px}
+.stats div{border-top:2px solid var(--line);padding-top:6px}
+.stats b{display:block;font-size:16px}
+.msg{font-weight:600;margin:8px 0 0}
+.row{display:flex;align-items:center;gap:10px;width:100%;padding:12px 0;border:0;border-bottom:1px solid var(--line);background:none;color:inherit;font:inherit;text-align:left;cursor:pointer}
+.dot{width:24px;height:24px;border-radius:50%;border:2px solid var(--mut);flex:none;display:grid;place-items:center;font-size:14px;color:#fff}
+.ok .dot{background:var(--pos);border-color:var(--pos)}
+.ok .nm{text-decoration:line-through;color:var(--mut)}
+.nm{flex:1}.nm small{display:block;color:var(--mut);font-size:12px}
+.x{border:0;background:none;color:var(--mut);font-size:22px;padding:4px 8px;cursor:pointer}
+.item{display:flex;align-items:center}
+.item .row{flex:1}
+.bar{position:relative;height:12px;border-radius:6px;background:var(--line);overflow:hidden;margin:6px 0 4px}
+.bar i{position:absolute;left:0;top:0;bottom:0}
+.bar .pl{background:var(--lt)}.bar .pd{background:var(--pos)}
+.bar.over .pl{background:var(--neg);opacity:.5}
+.cat{margin-bottom:16px}
+.cat .t{display:flex;justify-content:space-between;font-weight:600}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.chip{border:1.5px solid var(--line);background:none;color:inherit;border-radius:20px;padding:8px 14px;font:inherit;cursor:pointer}
+.chip.on{background:var(--pos);border-color:var(--pos);color:#fff}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+label{display:block;font-size:13px;color:var(--mut)}
+input,select{width:100%;margin-top:3px;padding:10px;border:1.5px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);font:inherit;font-size:16px}
+.add{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.add .full{grid-column:1/-1}
+.btn{padding:12px;border:0;border-radius:8px;background:var(--pos);color:#fff;font:inherit;font-weight:600;cursor:pointer}
+:focus-visible{outline:2px solid var(--pos);outline-offset:2px}
+</style>
+</head>
+<body>
+<main id="app"></main>
+<script>
+const NAMES={N:'Necessidades',D:'Desejos',P:'Poupança e dívidas'},PCT={N:.5,D:.3,P:.2};
+const D={inicial:4294.87,rendaBase:4294.87,extra:572.2,recebida:false,reserva:0,abast:2,valAbast:0,dias:9,sem:5,sc:'Enxuto',
+scs:{'Sem cortes':[100,110],'Moderado':[70,90],'Enxuto':[60,80]},
+bills:[{id:1,n:'Carro',v:1664,c:'N',p:1},{id:2,n:'Trilhagem',v:400,c:'D',p:1},{id:3,n:'Calças',v:128.2,c:'D',p:1},{id:4,n:'Dra Claudia',v:200,c:'N',p:0},{id:5,n:'Adrenalina',v:237,c:'D',p:0},{id:6,n:'Celular',v:154.04,c:'N',p:1}],nid:7};
+let S=JSON.parse(JSON.stringify(D)),ref=null,timer=null;
+const R=n=>n.toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const num=t=>{t=String(t).trim();if(t.includes(','))t=t.replace(/\./g,'').replace(',','.');const n=parseFloat(t);return isNaN(n)?0:n};
+const inp=(k,v,l)=>`<label>${l}<input data-k="${k}" inputmode="decimal" value="${String(v).replace('.',',')}"></label>`;
+
+function calc(){
+  const sum=(a,f)=>a.reduce((t,x)=>t+f(x),0);
+  const total=sum(S.bills,b=>b.v),paid=sum(S.bills,b=>b.p?b.v:0);
+  const fuel=S.abast*S.valAbast,[pd,pw]=S.scs[S.sc],saidas=pd*S.dias,mercado=pw*S.sem;
+  const caixa=S.inicial-paid+(S.recebida?S.extra:0);
+  const sobra=S.inicial+S.extra-total-fuel-saidas-mercado;
+  const cat={N:fuel+mercado,D:saidas,P:S.reserva},pg={N:0,D:0,P:S.reserva};
+  S.bills.forEach(b=>{cat[b.c]+=b.v;if(b.p)pg[b.c]+=b.v});
+  return{total,paid,caixa,sobra,cat,pg,renda:S.rendaBase+S.extra,apos:caixa+(S.recebida?0:S.extra)};
+}
+
+function render(){
+  const c=calc(),sc=S.scs[S.sc];
+  const bills=S.bills.map(b=>`<div class="item"><button class="row ${b.p?'ok':''}" data-pay="${b.id}"><span class="dot">${b.p?'✓':''}</span><span class="nm">${esc(b.n)}<small>${NAMES[b.c]}${b.p?' · paga':''}</small></span><b>${R(b.v)}</b></button><button class="x" data-del="${b.id}" aria-label="Remover ${esc(b.n)}">×</button></div>`).join('');
+  const cats=['N','D','P'].map(k=>{
+    const meta=c.renda*PCT[k],pv=c.cat[k],w=meta>0?Math.min(100,pv/meta*100):0,wp=meta>0?Math.min(100,c.pg[k]/meta*100):0;
+    const over=k!=='P'&&pv>meta,diff=Math.abs(meta-pv);
+    const st=k==='P'?(pv>=meta?'Meta atingida':`Falta guardar ${R(diff)}`):(over?`Acima da meta em ${R(diff)}`:`Ainda cabem ${R(diff)}`);
+    return `<div class="cat"><div class="t"><span>${NAMES[k]} ${PCT[k]*100}%</span><span>${R(pv)}</span></div><div class="bar ${over?'over':''}"><i class="pl" style="width:${w}%"></i><i class="pd" style="width:${wp}%"></i></div><div class="mut">Meta ${R(meta)} · ${st}</div></div>`;
+  }).join('');
+  const chips=Object.keys(S.scs).map(n=>`<button class="chip ${n===S.sc?'on':''}" data-sc="${n}">${n}</button>`).join('');
+  document.getElementById('app').innerHTML=`
+  <section class="hero"><div class="mut">Em caixa agora</div><div class="big ${c.caixa<0?'neg':'pos'}">${R(c.caixa)}</div>
+  <div class="stats"><div><span class="mut">Com renda extra</span><b>${R(c.apos)}</b></div><div><span class="mut">Contas a pagar</span><b>${R(c.total-c.paid)}</b></div><div><span class="mut">Sobra no mês</span><b class="${c.sobra<0?'neg':'pos'}">${R(c.sobra)}</b></div></div>
+  <p class="msg ${c.sobra<0?'neg':'pos'}">${c.sobra<0?`No cenário ${S.sc}, o mês fecha no vermelho em ${R(-c.sobra)}. Reduza saídas ou mercado.`:`No cenário ${S.sc}, o mês fecha positivo com ${R(c.sobra)}.`}</p></section>
+  <h2>Contas do mês</h2><div class="mut">Toque na conta para marcar como paga.</div>${bills}
+  <div class="add"><input id="nn" class="full" placeholder="Nome da conta"><input id="nv" inputmode="decimal" placeholder="Valor"><select id="nc"><option value="N">Necessidade</option><option value="D">Desejo</option><option value="P">Poupança/dívida</option></select><button class="btn full" data-add>Adicionar conta</button></div>
+  <h2>Regra 50/30/20</h2><div class="mut">Sobre a renda de ${R(c.renda)}. Barra escura = já pago, clara = previsto.</div><div style="height:12px"></div>${cats}
+  <h2>Planejamento</h2><div class="chips">${chips}</div>
+  <div class="grid">${inp('sd0',sc[0],'Saída por dia (R$)')}${inp('sd1',sc[1],'Mercado por semana (R$)')}${inp('dias',S.dias,'Dias de saída')}${inp('sem',S.sem,'Semanas de mercado')}${inp('abast',S.abast,'Abastecimentos restantes')}${inp('valAbast',S.valAbast,'Valor por abastecimento')}</div>
+  <h2>Valores base</h2>
+  <div class="grid">${inp('inicial',S.inicial,'Saldo antes das contas')}${inp('rendaBase',S.rendaBase,'Renda do mês (sem a extra)')}${inp('extra',S.extra,'Renda extra a receber')}${inp('reserva',S.reserva,'Reserva do mês')}</div>
+  <label style="margin-top:12px;display:flex;gap:8px;align-items:center"><input type="checkbox" data-rec style="width:auto;margin:0" ${S.recebida?'checked':''}> Já recebi a renda extra (soma no caixa)</label>
+  <p class="mut">Se você atualizar o saldo antes das contas já com a renda extra, não marque como recebida, para não contar duas vezes.</p>`;
+}
+
+function persist(){
+  clearTimeout(timer);
+  timer=setTimeout(async()=>{
+    const data=JSON.parse(JSON.stringify(S));
+    try{if(ref)await ref.set(data);else localStorage.setItem('caixa',JSON.stringify(data))}catch(e){}
+  },500);
+}
+function upd(){render();persist()}
+
+document.addEventListener('click',e=>{
+  const t=e.target.closest('[data-pay],[data-del],[data-sc],[data-add]');if(!t)return;
+  if(t.dataset.pay){const b=S.bills.find(x=>x.id==t.dataset.pay);b.p=b.p?0:1}
+  else if(t.dataset.del){S.bills=S.bills.filter(x=>x.id!=t.dataset.del)}
+  else if(t.dataset.sc){S.sc=t.dataset.sc}
+  else if('add' in t.dataset){
+    const n=document.getElementById('nn').value.trim(),v=num(document.getElementById('nv').value);
+    if(!n||v<=0)return;
+    S.bills.push({id:S.nid++,n,v,c:document.getElementById('nc').value,p:0});
+  }
+  upd();
+});
+document.addEventListener('change',e=>{
+  const t=e.target;
+  if('rec' in t.dataset){S.recebida=t.checked;return upd()}
+  const k=t.dataset.k;if(!k)return;
+  const v=num(t.value);
+  if(k==='sd0'||k==='sd1')S.scs[S.sc][+k[2]]=v;else S[k]=v;
+  upd();
+});
+
+(async function init(){
+  render();
+  try{
+    const db=await claude.use('db'),user=await claude.use('user');
+    if(db&&user){
+      const id=await user.id();
+      if(id){
+        ref=db.doc('data/users/'+id+'/caixa');
+        const sn=await ref.get();
+        if(sn.exists){S=Object.assign(JSON.parse(JSON.stringify(D)),sn.data());render()}
+        return;
+      }
+    }
+  }catch(e){}
+  try{const t=localStorage.getItem('caixa');if(t){S=Object.assign(JSON.parse(JSON.stringify(D)),JSON.parse(t));render()}}catch(e){}
+})();
+</script>
+</body>
+</html>
